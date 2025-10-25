@@ -4,10 +4,10 @@ import com.vocablend.vocablend_be.Dao.Entity.DeviceWordEntity;
 import com.vocablend.vocablend_be.Dao.Entity.WordEntity;
 import com.vocablend.vocablend_be.Dao.Repository.DeviceWordRepository;
 import com.vocablend.vocablend_be.Service.Word.WordService;
-import io.netty.util.internal.ObjectUtil;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.ObjectUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,14 +25,21 @@ public class DeviceWordServiceImpl implements DeviceWordService{
         WordEntity wordEntity = new WordEntity();
         DeviceWordEntity deviceWord = deviceWordRepository.findByDeviceId(deviceId)
                 .orElse(new DeviceWordEntity(null, deviceId, new ArrayList<>()));
+        if(StringUtils.hasText(word)){
 
-        if (!deviceWord.getWords().contains(word)) {
+            word = word.toLowerCase();
 
-            wordEntity = wordService.addWord(word);
+            if (!deviceWord.getWords().contains(word)) {
 
-            deviceWord.getWords().add(word);
-            deviceWordRepository.save(deviceWord);
+                wordEntity = wordService.addWord(word);
+
+                if(!ObjectUtils.isEmpty(wordEntity.getExamples())){
+                    deviceWord.getWords().add(word);
+                    deviceWordRepository.save(deviceWord);
+                }
+            }
         }
+
 
         return wordEntity;
     }
@@ -49,6 +56,33 @@ public class DeviceWordServiceImpl implements DeviceWordService{
         }
 
         return wordListByWords;
+
+    }
+
+    @Override
+    public void deleteByDeviceIdAndWord(String deviceId, String word) {
+
+        if(!StringUtils.hasText(word) || !StringUtils.hasText(deviceId)){
+            return;
+        }
+
+        DeviceWordEntity deviceWord = deviceWordRepository.findByDeviceId(deviceId)
+                .orElse(null);
+
+        if (deviceWord == null) {
+            return;
+        }
+
+        List<String> words = deviceWord.getWords();
+        word = word.toLowerCase();
+
+        if (!ObjectUtils.isEmpty(words) && words.contains(word)) {
+            words.remove(word);
+            deviceWord.setWords(words);
+
+            deviceWordRepository.save(deviceWord);
+        }
+
 
     }
 }

@@ -8,4 +8,5 @@ public interface DeviceWordService {
 
     WordEntity addWord(String deviceId, String word);
     List<WordEntity> getWordList(String deviceId);
+    void deleteByDeviceIdAndWord(String deviceId, String word);
 }
