@@ -1,11 +1,36 @@
-# Base image olarak OpenJDK 24 kullanıyoruz
+# ----------------------
+# Stage 1: Build jar
+# ----------------------
+FROM maven:3.9.2-eclipse-temurin-17 AS build
+
+WORKDIR /app
+
+# Maven bağımlılıklarını önceden cache için kopyala
+COPY pom.xml .
+RUN mvn dependency:go-offline
+
+# Source kodları kopyala
+COPY src ./src
+
+# Jar build
+RUN mvn clean package -DskipTests
+
+# ----------------------
+# Stage 2: Run
+# ----------------------
 FROM openjdk:24-jdk-slim
 
-# Jar dosyamızın yolunu argüman olarak alıyoruz
-ARG JAR_FILE=target/vocablend-be-0.0.1-SNAPSHOT.jar
+WORKDIR /app
 
-# Jar dosyasını container içine kopyalıyoruz
-COPY ${JAR_FILE} app.jar
+# Build stage’den jar’ı al
+COPY --from=build /app/target/*.jar app.jar
 
-# Container çalıştırıldığında çalışacak komut
+# Env variable yükleme (Render veya Docker run sırasında)
+# Örn: docker run --env-file .env ...
+ENV SPRING_APPLICATION_NAME=${SPRING_APPLICATION_NAME}
+ENV SPRING_DATA_MONGODB_URI=${SPRING_DATA_MONGODB_URI}
+ENV SPRING_DATA_MONGODB_DATABASE=${SPRING_DATA_MONGODB_DATABASE}
+ENV GEMINI_API_KEY=${GEMINI_API_KEY}
+
+# Uygulamayı çalıştır
 ENTRYPOINT ["java", "-jar", "/app.jar"]
