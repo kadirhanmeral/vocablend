@@ -14,7 +14,7 @@ RUN mvn clean package -DskipTests -U
 # ----------------------
 # Final aşaması
 # ----------------------
-FROM openjdk:21-slim
+FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 
 # Build aşamasındaki jar'ı kopyala

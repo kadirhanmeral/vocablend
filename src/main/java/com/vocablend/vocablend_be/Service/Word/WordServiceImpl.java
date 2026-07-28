@@ -46,7 +46,7 @@ public class WordServiceImpl implements WordService {
                 "Return JSON like: {\"meaningEn\": \"...\", \"meaningTr\": \"...\", \"examples\": [\"...\", \"...\"]}";
 
         GenerateContentResponse response = geminiClient.models.generateContent(
-                "gemini-2.5-flash",
+                "gemini-flash-latest",
                 prompt,
                 null
         );
