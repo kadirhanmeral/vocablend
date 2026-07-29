@@ -17,5 +17,5 @@ public class DeviceWordEntity {
     @Id
     private String id;
     private String deviceId;
-    private List<String> words;
+    private List<WordProgress> words;
 }
