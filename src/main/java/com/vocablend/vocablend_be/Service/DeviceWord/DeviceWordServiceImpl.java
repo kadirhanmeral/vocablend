@@ -70,10 +70,10 @@ public class DeviceWordServiceImpl implements DeviceWordService {
                 .map(DeviceWordEntity::getWords)
                 .orElse(new ArrayList<>());
 
-        LocalDate today = LocalDate.now();
-        List<WordProgress> dueProgress = progressList.stream()
-                .filter(progress -> !progress.getNextReviewDate().isAfter(today))
-                .toList();
+        // Due-date filtering disabled for now - every saved word is returned regardless
+        // of nextReviewDate, per product request. Box level/next-review data is still
+        // tracked and returned, so re-enabling the filter later is a one-line change.
+        List<WordProgress> dueProgress = progressList;
 
         if (dueProgress.isEmpty()) {
             return new ArrayList<>();

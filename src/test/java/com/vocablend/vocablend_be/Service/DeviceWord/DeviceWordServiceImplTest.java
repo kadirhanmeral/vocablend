@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,7 +40,7 @@ class DeviceWordServiceImplTest {
     }
 
     @Test
-    void getDueWordList_onlyReturnsWordsDueTodayOrEarlier() {
+    void getDueWordList_returnsAllSavedWordsRegardlessOfNextReviewDate() {
         String deviceId = "device-1";
         WordProgress dueYesterday = new WordProgress("apple", 2, LocalDate.now().minusDays(1));
         WordProgress dueToday = new WordProgress("banana", 1, LocalDate.now());
@@ -51,16 +50,16 @@ class DeviceWordServiceImplTest {
                 "1", deviceId, new ArrayList<>(List.of(dueYesterday, dueToday, dueTomorrow)));
 
         when(deviceWordRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(deviceWord));
-        when(wordService.getWordListByWords(List.of("apple", "banana"))).thenReturn(List.of(
-                wordEntity("apple"), wordEntity("banana")
+        when(wordService.getWordListByWords(List.of("apple", "banana", "cherry"))).thenReturn(List.of(
+                wordEntity("apple"), wordEntity("banana"), wordEntity("cherry")
         ));
 
         List<DueWordResponse> due = deviceWordService.getDueWordList(deviceId);
 
-        assertEquals(2, due.size());
+        assertEquals(3, due.size());
         assertTrue(due.stream().anyMatch(w -> w.getWord().equals("apple")));
         assertTrue(due.stream().anyMatch(w -> w.getWord().equals("banana")));
-        assertFalse(due.stream().anyMatch(w -> w.getWord().equals("cherry")));
+        assertTrue(due.stream().anyMatch(w -> w.getWord().equals("cherry")));
     }
 
     @Test
