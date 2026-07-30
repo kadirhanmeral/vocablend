@@ -81,7 +81,7 @@ public class DeviceWordServiceImpl implements DeviceWordService {
 
         List<String> dueWords = dueProgress.stream().map(WordProgress::getWord).toList();
         Map<String, WordEntity> wordsByText = wordService.getWordListByWords(dueWords).stream()
-                .collect(Collectors.toMap(WordEntity::getWord, w -> w));
+                .collect(Collectors.toMap(WordEntity::getWord, w -> w, (first, second) -> first));
 
         return dueProgress.stream()
                 .filter(progress -> wordsByText.containsKey(progress.getWord()))
