@@ -8,4 +8,5 @@ public interface WordService {
 
     WordEntity addWord(String wordText);
     List<WordEntity> getWordListByWords(List<String> words);
+    List<WordEntity> getRandomWords(int count, List<String> excludeWords);
 }

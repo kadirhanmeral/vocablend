@@ -38,6 +38,10 @@ public class WordServiceImpl implements WordService {
         return wordRepository.findAllByWordIn(words);
     }
 
+    public List<WordEntity> getRandomWords(int count, List<String> excludeWords) {
+        return wordRepository.findRandomExcluding(excludeWords, count);
+    }
+
     private WordEntity fetchFromAI(String wordText) {
         String prompt = "You are a dictionary assistant. " +
                 "Provide the meaning of the word \"" + wordText + "\" in English and Turkish, " +
