@@ -14,6 +14,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -61,7 +62,13 @@ public class DeviceWordServiceImpl implements DeviceWordService {
             return new ArrayList<>();
         }
 
-        return wordService.getWordListByWords(words);
+        // The global word cache can contain duplicate entries for the same word text
+        // (see WordServiceImpl.addWord's check-then-insert race), so dedupe by word here,
+        // same as getDueWordList does.
+        return wordService.getWordListByWords(words).stream()
+                .collect(Collectors.toMap(WordEntity::getWord, w -> w, (first, second) -> first, LinkedHashMap::new))
+                .values().stream()
+                .toList();
     }
 
     @Override

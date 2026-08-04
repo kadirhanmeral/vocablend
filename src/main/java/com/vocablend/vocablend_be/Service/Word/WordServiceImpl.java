@@ -7,6 +7,7 @@ import com.vocablend.vocablend_be.Dao.Entity.WordEntity;
 import com.vocablend.vocablend_be.Dao.Repository.WordRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.ObjectUtils;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import com.google.genai.types.GenerateContentResponse;
 
@@ -29,7 +30,13 @@ public class WordServiceImpl implements WordService {
         WordEntity newWord = fetchFromAI(wordText);
 
         if (!ObjectUtils.isEmpty(newWord.getExamples())){
-            wordRepository.save(newWord);
+            try {
+                wordRepository.save(newWord);
+            } catch (DuplicateKeyException e) {
+                // Another concurrent request already cached this word between our findByWord
+                // check and this save - return its entry instead of failing the request.
+                return wordRepository.findByWord(wordText);
+            }
         }
         return newWord;
     }
@@ -43,22 +50,33 @@ public class WordServiceImpl implements WordService {
     }
 
     private WordEntity fetchFromAI(String wordText) {
-        String prompt = "You are a dictionary assistant. " +
-                "Provide the meaning of the word \"" + wordText + "\" in English and Turkish, " +
-                "and 2 example sentences in English. " +
-                "Only return a JSON if the word exists in English; otherwise return null" +
-                "Return JSON like: {\"meaningEn\": \"...\", \"meaningTr\": \"...\", \"examples\": [\"...\", \"...\"]}";
-
-        GenerateContentResponse response = geminiClient.models.generateContent(
-                "gemini-flash-latest",
-                prompt,
-                null
-        );
-
-        String text = response.text().replace("```json", "").replace("```", "").trim();
-
         WordEntity word = new WordEntity();
         word.setWord(wordText);
+
+        String text;
+        try {
+            String prompt = "You are a dictionary assistant. " +
+                    "Provide the meaning of the word \"" + wordText + "\" in English and Turkish, " +
+                    "and 2 example sentences in English. " +
+                    "Only return a JSON if the word exists in English; otherwise return null" +
+                    "Return JSON like: {\"meaningEn\": \"...\", \"meaningTr\": \"...\", \"examples\": [\"...\", \"...\"]}";
+
+            GenerateContentResponse response = geminiClient.models.generateContent(
+                    "gemini-3.1-flash-lite",
+                    prompt,
+                    null
+            );
+
+            text = response.text().replace("```json", "").replace("```", "").trim();
+        } catch (Exception e) {
+            // Gemini call failed (rate limit, quota, transient outage, etc.) - treat the same
+            // as "not a real word" so the caller gets a clean not-found response instead of a 500,
+            // and nothing bad gets cached; the word can simply be retried later.
+            word.setMeaningEn("Meaning not found");
+            word.setMeaningTr("Anlam bulunamadı");
+            word.setExamples(List.of());
+            return word;
+        }
 
         try {
             var mapper = new com.fasterxml.jackson.databind.ObjectMapper();

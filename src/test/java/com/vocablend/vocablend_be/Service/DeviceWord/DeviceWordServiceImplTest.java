@@ -81,6 +81,24 @@ class DeviceWordServiceImplTest {
     }
 
     @Test
+    void getWordList_dedupesDuplicateWordEntriesInGlobalCache() {
+        String deviceId = "device-1";
+        WordProgress spare = new WordProgress("spare", 1, LocalDate.now());
+        DeviceWordEntity deviceWord = new DeviceWordEntity(
+                "1", deviceId, new ArrayList<>(List.of(spare)));
+
+        when(deviceWordRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(deviceWord));
+        when(wordService.getWordListByWords(List.of("spare"))).thenReturn(List.of(
+                wordEntity("spare"), wordEntity("spare")
+        ));
+
+        List<WordEntity> words = deviceWordService.getWordList(deviceId);
+
+        assertEquals(1, words.size());
+        assertEquals("spare", words.get(0).getWord());
+    }
+
+    @Test
     void recordReview_gotIt_incrementsBoxAndPushesNextReviewDateForward() {
         String deviceId = "device-1";
         WordProgress progress = new WordProgress("apple", 2, LocalDate.now());
