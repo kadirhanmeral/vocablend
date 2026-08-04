@@ -1,10 +1,7 @@
 package com.vocablend.vocablend_be.Controller;
 
 import com.vocablend.vocablend_be.Dao.Entity.WordEntity;
-import com.vocablend.vocablend_be.Dto.DueWordResponse;
-import com.vocablend.vocablend_be.Dto.ReviewResponse;
 import com.vocablend.vocablend_be.Service.DeviceWord.DeviceWordService;
-import com.vocablend.vocablend_be.Service.DeviceWord.ReviewOutcome;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -31,25 +28,6 @@ public class DeviceWordController {
     public ResponseEntity<List<WordEntity>> getDeviceWords(@PathVariable String deviceId) {
         List<WordEntity> words = deviceWordService.getWordList(deviceId);
         return ResponseEntity.ok(words);
-    }
-
-    @GetMapping("/{deviceId}/due")
-    public ResponseEntity<List<DueWordResponse>> getDueWords(@PathVariable String deviceId) {
-        List<DueWordResponse> dueWords = deviceWordService.getDueWordList(deviceId);
-        return ResponseEntity.ok(dueWords);
-    }
-
-    @PostMapping("/{deviceId}/{word}/review")
-    public ResponseEntity<ReviewResponse> reviewWord(
-            @PathVariable String deviceId,
-            @PathVariable String word,
-            @RequestParam ReviewOutcome outcome
-    ) {
-        ReviewResponse result = deviceWordService.recordReview(deviceId, word, outcome);
-        if (result == null) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(result);
     }
 
     @DeleteMapping("/{deviceId}/{word}")

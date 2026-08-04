@@ -4,19 +4,15 @@ import com.vocablend.vocablend_be.Dao.Entity.DeviceWordEntity;
 import com.vocablend.vocablend_be.Dao.Entity.WordEntity;
 import com.vocablend.vocablend_be.Dao.Entity.WordProgress;
 import com.vocablend.vocablend_be.Dao.Repository.DeviceWordRepository;
-import com.vocablend.vocablend_be.Dto.DueWordResponse;
-import com.vocablend.vocablend_be.Dto.ReviewResponse;
 import com.vocablend.vocablend_be.Service.Word.WordService;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.ObjectUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -45,7 +41,7 @@ public class DeviceWordServiceImpl implements DeviceWordService {
                 wordEntity = wordService.addWord(normalizedWord);
 
                 if (!ObjectUtils.isEmpty(wordEntity.getExamples())) {
-                    deviceWord.getWords().add(new WordProgress(normalizedWord, LeitnerBox.MIN_BOX, LocalDate.now()));
+                    deviceWord.getWords().add(new WordProgress(normalizedWord));
                     deviceWordRepository.save(deviceWord);
                 }
             }
@@ -63,79 +59,11 @@ public class DeviceWordServiceImpl implements DeviceWordService {
         }
 
         // The global word cache can contain duplicate entries for the same word text
-        // (see WordServiceImpl.addWord's check-then-insert race), so dedupe by word here,
-        // same as getDueWordList does.
+        // (see WordServiceImpl.addWord's check-then-insert race), so dedupe by word here.
         return wordService.getWordListByWords(words).stream()
                 .collect(Collectors.toMap(WordEntity::getWord, w -> w, (first, second) -> first, LinkedHashMap::new))
                 .values().stream()
                 .toList();
-    }
-
-    @Override
-    public List<DueWordResponse> getDueWordList(String deviceId) {
-        List<WordProgress> progressList = deviceWordRepository.findByDeviceId(deviceId)
-                .map(DeviceWordEntity::getWords)
-                .orElse(new ArrayList<>());
-
-        // Due-date filtering disabled for now - every saved word is returned regardless
-        // of nextReviewDate, per product request. Box level/next-review data is still
-        // tracked and returned, so re-enabling the filter later is a one-line change.
-        List<WordProgress> dueProgress = progressList;
-
-        if (dueProgress.isEmpty()) {
-            return new ArrayList<>();
-        }
-
-        List<String> dueWords = dueProgress.stream().map(WordProgress::getWord).toList();
-        Map<String, WordEntity> wordsByText = wordService.getWordListByWords(dueWords).stream()
-                .collect(Collectors.toMap(WordEntity::getWord, w -> w, (first, second) -> first));
-
-        return dueProgress.stream()
-                .filter(progress -> wordsByText.containsKey(progress.getWord()))
-                .map(progress -> {
-                    WordEntity wordEntity = wordsByText.get(progress.getWord());
-                    return new DueWordResponse(
-                            wordEntity.getId(),
-                            wordEntity.getWord(),
-                            wordEntity.getMeaningEn(),
-                            wordEntity.getMeaningTr(),
-                            wordEntity.getExamples(),
-                            progress.getBoxLevel(),
-                            progress.getNextReviewDate()
-                    );
-                })
-                .toList();
-    }
-
-    @Override
-    public ReviewResponse recordReview(String deviceId, String word, ReviewOutcome outcome) {
-        String normalizedWord = word.toLowerCase();
-
-        DeviceWordEntity deviceWord = deviceWordRepository.findByDeviceId(deviceId)
-                .orElse(null);
-
-        if (deviceWord == null) {
-            return null;
-        }
-
-        WordProgress progress = deviceWord.getWords().stream()
-                .filter(p -> p.getWord().equals(normalizedWord))
-                .findFirst()
-                .orElse(null);
-
-        if (progress == null) {
-            return null;
-        }
-
-        int newBoxLevel = LeitnerBox.nextBoxLevel(progress.getBoxLevel(), outcome);
-        LocalDate newNextReviewDate = LeitnerBox.nextReviewDate(newBoxLevel);
-
-        progress.setBoxLevel(newBoxLevel);
-        progress.setNextReviewDate(newNextReviewDate);
-
-        deviceWordRepository.save(deviceWord);
-
-        return new ReviewResponse(normalizedWord, newBoxLevel, newNextReviewDate);
     }
 
     @Override
