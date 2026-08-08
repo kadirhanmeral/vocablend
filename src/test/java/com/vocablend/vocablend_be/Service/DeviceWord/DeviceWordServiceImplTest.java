@@ -1,5 +1,6 @@
 package com.vocablend.vocablend_be.Service.DeviceWord;
 
+import com.vocablend.vocablend_be.Controller.Dto.DeviceWordResponse;
 import com.vocablend.vocablend_be.Dao.Entity.DeviceWordEntity;
 import com.vocablend.vocablend_be.Dao.Entity.WordEntity;
 import com.vocablend.vocablend_be.Dao.Entity.WordProgress;
@@ -56,10 +57,38 @@ class DeviceWordServiceImplTest {
                 wordEntity("spare"), wordEntity("spare")
         ));
 
-        List<WordEntity> words = deviceWordService.getWordList(deviceId);
+        List<DeviceWordResponse> words = deviceWordService.getWordList(deviceId);
 
         assertEquals(1, words.size());
-        assertEquals("spare", words.get(0).getWord());
+        assertEquals("spare", words.get(0).word());
+    }
+
+    @Test
+    void getWordList_joinsProgressAndNormalizesLegacyNullReviewDate() {
+        String deviceId = "device-1";
+        Instant scheduled = NOW.plusSeconds(3600);
+        WordProgress apple = new WordProgress("apple", 4, 0, scheduled);
+        WordProgress legacy = new WordProgress("legacy", 0, 0, null);
+        DeviceWordEntity deviceWord = new DeviceWordEntity(
+                "1", deviceId, new ArrayList<>(List.of(apple, legacy)));
+
+        when(deviceWordRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(deviceWord));
+        when(wordService.getWordListByWords(List.of("apple", "legacy"))).thenReturn(List.of(
+                wordEntity("apple"), wordEntity("legacy")
+        ));
+
+        List<DeviceWordResponse> words = deviceWordService.getWordList(deviceId);
+
+        assertEquals(2, words.size());
+
+        DeviceWordResponse first = words.get(0);
+        assertEquals("apple", first.word());
+        assertEquals("apple meaning", first.meaningEn());
+        assertEquals(4, first.level());
+        assertEquals(scheduled, first.nextReviewAt());
+
+        // A null nextReviewAt means "no recorded progress", which reads as due now.
+        assertEquals(NOW, words.get(1).nextReviewAt());
     }
 
     @Test

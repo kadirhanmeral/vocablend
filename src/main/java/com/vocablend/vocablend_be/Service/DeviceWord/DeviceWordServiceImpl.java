@@ -1,5 +1,6 @@
 package com.vocablend.vocablend_be.Service.DeviceWord;
 
+import com.vocablend.vocablend_be.Controller.Dto.DeviceWordResponse;
 import com.vocablend.vocablend_be.Dao.Entity.DeviceWordEntity;
 import com.vocablend.vocablend_be.Dao.Entity.WordEntity;
 import com.vocablend.vocablend_be.Dao.Entity.WordProgress;
@@ -15,6 +16,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -56,19 +59,47 @@ public class DeviceWordServiceImpl implements DeviceWordService {
     }
 
     @Override
-    public List<WordEntity> getWordList(String deviceId) {
-        List<String> words = wordsOf(deviceId);
+    public List<DeviceWordResponse> getWordList(String deviceId) {
+        List<WordProgress> progresses = progressesOf(deviceId);
 
-        if (ObjectUtils.isEmpty(words)) {
+        if (ObjectUtils.isEmpty(progresses)) {
             return new ArrayList<>();
         }
 
+        List<String> words = progresses.stream().map(WordProgress::getWord).toList();
+
         // The global word cache can contain duplicate entries for the same word text
-        // (see WordServiceImpl.addWord's check-then-insert race), so dedupe by word here.
-        return wordService.getWordListByWords(words).stream()
-                .collect(Collectors.toMap(WordEntity::getWord, w -> w, (first, second) -> first, LinkedHashMap::new))
-                .values().stream()
+        // (see WordServiceImpl.addWord's check-then-insert race), so keep the first
+        // entry per word when building the lookup.
+        Map<String, WordEntity> contentByWord = wordService.getWordListByWords(words).stream()
+                .collect(Collectors.toMap(WordEntity::getWord, w -> w, (first, second) -> first, LinkedHashMap::new));
+
+        Instant now = clock.instant();
+
+        return progresses.stream()
+                .map(progress -> toResponse(progress, contentByWord.get(progress.getWord()), now))
+                .filter(Objects::nonNull)
                 .toList();
+    }
+
+    private DeviceWordResponse toResponse(WordProgress progress, WordEntity content, Instant now) {
+        if (content == null) {
+            return null;
+        }
+
+        // A null nextReviewAt comes from documents written before scheduling
+        // existed; those words have no recorded progress, so they are due now.
+        Instant nextReviewAt = progress.getNextReviewAt() != null ? progress.getNextReviewAt() : now;
+
+        return new DeviceWordResponse(
+                content.getId(),
+                content.getWord(),
+                content.getMeaningEn(),
+                content.getMeaningTr(),
+                content.getExamples(),
+                progress.getLevel(),
+                progress.getCorrectStreak(),
+                nextReviewAt);
     }
 
     @Override
@@ -93,12 +124,9 @@ public class DeviceWordServiceImpl implements DeviceWordService {
         }
     }
 
-    private List<String> wordsOf(String deviceId) {
+    private List<WordProgress> progressesOf(String deviceId) {
         return deviceWordRepository.findByDeviceId(deviceId)
                 .map(DeviceWordEntity::getWords)
-                .orElse(new ArrayList<>())
-                .stream()
-                .map(WordProgress::getWord)
-                .toList();
+                .orElse(new ArrayList<>());
     }
 }

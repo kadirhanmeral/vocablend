@@ -1,5 +1,6 @@
 package com.vocablend.vocablend_be.Controller;
 
+import com.vocablend.vocablend_be.Controller.Dto.DeviceWordResponse;
 import com.vocablend.vocablend_be.Dao.Entity.WordEntity;
 import com.vocablend.vocablend_be.Service.DeviceWord.DeviceWordService;
 import lombok.RequiredArgsConstructor;
@@ -25,8 +26,8 @@ public class DeviceWordController {
     }
 
     @GetMapping("/{deviceId}/list")
-    public ResponseEntity<List<WordEntity>> getDeviceWords(@PathVariable String deviceId) {
-        List<WordEntity> words = deviceWordService.getWordList(deviceId);
+    public ResponseEntity<List<DeviceWordResponse>> getDeviceWords(@PathVariable String deviceId) {
+        List<DeviceWordResponse> words = deviceWordService.getWordList(deviceId);
         return ResponseEntity.ok(words);
     }
 
