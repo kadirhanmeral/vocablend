@@ -42,6 +42,7 @@
 **Mobile — modify:**
 - `src/api/types.ts` — `DeviceWord`, `ReviewResult`
 - `src/api/client.ts` — `getWordList` return type, `postReview`
+- `src/lib/queryPersister.ts` — cache buster bump, since the persisted `deviceWords` shape changes
 - `src/hooks/useDeviceWords.ts` — `reviewMutation` with optimistic update
 - `src/components/Flashcard.tsx` — optional `progressLabel` prop
 - `src/screens/PracticeScreen.tsx` — explicit session construction, due-filtered decks, grading, empty state, free practice
@@ -1188,16 +1189,37 @@ export async function postReview(
 }
 ```
 
-- [ ] **Step 3: Type-check**
+- [ ] **Step 3: Invalidate the persisted query cache**
+
+`src/lib/queryPersister.ts` writes the query cache to AsyncStorage, and its own
+comment says to bump the buster when the shape of cached data changes. This task
+changes the `deviceWords` cache entries from `WordEntity` to `DeviceWord`, so a
+rehydrated v1 entry would arrive with `level` and `nextReviewAt` undefined and
+render as "Seviye undefined".
+
+In `src/lib/queryPersister.ts`, change:
+
+```ts
+const CACHE_BUSTER = 'v1';
+```
+
+to:
+
+```ts
+// v2: deviceWords entries gained level/correctStreak/nextReviewAt.
+const CACHE_BUSTER = 'v2';
+```
+
+- [ ] **Step 4: Type-check**
 
 Run: `npx tsc --noEmit`
 Expected: exits 0 with no output.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 cd /Users/kadirhanmeral/Personal/vocablend-app/vocablend-mobile
-git add src/api/types.ts src/api/client.ts
+git add src/api/types.ts src/api/client.ts src/lib/queryPersister.ts
 git commit -m "Add DeviceWord progress fields and postReview to the API client"
 ```
 
