@@ -1,10 +1,15 @@
 package com.vocablend.vocablend_be.Controller;
 
+import com.vocablend.vocablend_be.Controller.Dto.DeviceWordResponse;
+import com.vocablend.vocablend_be.Controller.Dto.ReviewResponse;
 import com.vocablend.vocablend_be.Dao.Entity.WordEntity;
 import com.vocablend.vocablend_be.Service.DeviceWord.DeviceWordService;
+import com.vocablend.vocablend_be.Service.DeviceWord.ReviewOutcome;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -25,9 +30,29 @@ public class DeviceWordController {
     }
 
     @GetMapping("/{deviceId}/list")
-    public ResponseEntity<List<WordEntity>> getDeviceWords(@PathVariable String deviceId) {
-        List<WordEntity> words = deviceWordService.getWordList(deviceId);
+    public ResponseEntity<List<DeviceWordResponse>> getDeviceWords(@PathVariable String deviceId) {
+        List<DeviceWordResponse> words = deviceWordService.getWordList(deviceId);
         return ResponseEntity.ok(words);
+    }
+
+    @PostMapping("/{deviceId}/{word}/review")
+    public ResponseEntity<ReviewResponse> review(
+            @PathVariable String deviceId,
+            @PathVariable String word,
+            @RequestParam String outcome
+    ) {
+        ReviewOutcome parsedOutcome;
+
+        try {
+            parsedOutcome = ReviewOutcome.fromParam(outcome);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "outcome must be gotIt or stillLearning");
+        }
+
+        return deviceWordService.review(deviceId, word, parsedOutcome)
+                .map(ResponseEntity::ok)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "word is not saved for this device"));
     }
 
     @DeleteMapping("/{deviceId}/{word}")
