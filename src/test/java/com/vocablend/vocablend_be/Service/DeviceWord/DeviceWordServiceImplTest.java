@@ -11,6 +11,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -22,23 +25,27 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DeviceWordServiceImplTest {
 
+    private static final Instant NOW = Instant.parse("2026-08-08T10:00:00Z");
+
     @Mock
     private DeviceWordRepository deviceWordRepository;
 
     @Mock
     private WordService wordService;
 
+    private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+
     private DeviceWordServiceImpl deviceWordService;
 
     @BeforeEach
     void setUp() {
-        deviceWordService = new DeviceWordServiceImpl(deviceWordRepository, wordService);
+        deviceWordService = new DeviceWordServiceImpl(deviceWordRepository, wordService, clock);
     }
 
     @Test
     void getWordList_dedupesDuplicateWordEntriesInGlobalCache() {
         String deviceId = "device-1";
-        WordProgress spare = new WordProgress("spare");
+        WordProgress spare = new WordProgress("spare", 0, 0, NOW);
         DeviceWordEntity deviceWord = new DeviceWordEntity(
                 "1", deviceId, new ArrayList<>(List.of(spare)));
 
@@ -56,8 +63,8 @@ class DeviceWordServiceImplTest {
     @Test
     void deleteByDeviceIdAndWord_removesMatchingProgressOnly() {
         String deviceId = "device-1";
-        WordProgress apple = new WordProgress("apple");
-        WordProgress banana = new WordProgress("banana");
+        WordProgress apple = new WordProgress("apple", 0, 0, NOW);
+        WordProgress banana = new WordProgress("banana", 0, 0, NOW);
         DeviceWordEntity deviceWord = new DeviceWordEntity(
                 "1", deviceId, new ArrayList<>(List.of(apple, banana)));
 

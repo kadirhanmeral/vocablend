@@ -10,6 +10,8 @@ import org.apache.commons.lang3.ObjectUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,6 +24,8 @@ public class DeviceWordServiceImpl implements DeviceWordService {
     private final DeviceWordRepository deviceWordRepository;
 
     private final WordService wordService;
+
+    private final Clock clock;
 
     @Override
     public WordEntity addWord(String deviceId, String word) {
@@ -41,7 +45,8 @@ public class DeviceWordServiceImpl implements DeviceWordService {
                 wordEntity = wordService.addWord(normalizedWord);
 
                 if (!ObjectUtils.isEmpty(wordEntity.getExamples())) {
-                    deviceWord.getWords().add(new WordProgress(normalizedWord));
+                    // New words start in the learning phase and are due immediately.
+                    deviceWord.getWords().add(new WordProgress(normalizedWord, 0, 0, clock.instant()));
                     deviceWordRepository.save(deviceWord);
                 }
             }
