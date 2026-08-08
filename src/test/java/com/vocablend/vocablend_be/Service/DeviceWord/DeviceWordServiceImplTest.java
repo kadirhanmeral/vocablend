@@ -52,15 +52,44 @@ class DeviceWordServiceImplTest {
         DeviceWordEntity deviceWord = new DeviceWordEntity(
                 "1", deviceId, new ArrayList<>(List.of(spare)));
 
+        WordEntity firstEntry = wordEntity("spare");
+        firstEntry.setMeaningEn("first meaning");
+        WordEntity secondEntry = wordEntity("spare");
+        secondEntry.setMeaningEn("second meaning");
+
         when(deviceWordRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(deviceWord));
         when(wordService.getWordListByWords(List.of("spare"))).thenReturn(List.of(
-                wordEntity("spare"), wordEntity("spare")
+                firstEntry, secondEntry
         ));
 
         List<DeviceWordResponse> words = deviceWordService.getWordList(deviceId);
 
         assertEquals(1, words.size());
         assertEquals("spare", words.get(0).word());
+        // Duplicate WordEntity rows for the same word (see WordServiceImpl.addWord's
+        // check-then-insert race) must resolve to the first cached entry, not the last.
+        assertEquals("first meaning", words.get(0).meaningEn());
+    }
+
+    @Test
+    void getWordList_dropsProgressWithNoCachedContent() {
+        String deviceId = "device-1";
+        WordProgress apple = new WordProgress("apple", 0, 0, NOW);
+        WordProgress deleted = new WordProgress("deleted", 0, 0, NOW);
+        DeviceWordEntity deviceWord = new DeviceWordEntity(
+                "1", deviceId, new ArrayList<>(List.of(apple, deleted)));
+
+        when(deviceWordRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(deviceWord));
+        // "deleted" has progress but no matching WordEntity in the global cache
+        // (e.g. removed from `words`, or never successfully persisted).
+        when(wordService.getWordListByWords(List.of("apple", "deleted"))).thenReturn(List.of(
+                wordEntity("apple")
+        ));
+
+        List<DeviceWordResponse> words = deviceWordService.getWordList(deviceId);
+
+        assertEquals(1, words.size());
+        assertEquals("apple", words.get(0).word());
     }
 
     @Test

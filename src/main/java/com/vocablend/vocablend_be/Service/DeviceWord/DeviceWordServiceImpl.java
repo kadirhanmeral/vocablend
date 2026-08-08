@@ -14,7 +14,6 @@ import org.springframework.util.StringUtils;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -70,9 +69,10 @@ public class DeviceWordServiceImpl implements DeviceWordService {
 
         // The global word cache can contain duplicate entries for the same word text
         // (see WordServiceImpl.addWord's check-then-insert race), so keep the first
-        // entry per word when building the lookup.
+        // entry per word when building the lookup. Map order is irrelevant here since
+        // the response order comes from `progresses`, not from iterating this map.
         Map<String, WordEntity> contentByWord = wordService.getWordListByWords(words).stream()
-                .collect(Collectors.toMap(WordEntity::getWord, w -> w, (first, second) -> first, LinkedHashMap::new));
+                .collect(Collectors.toMap(WordEntity::getWord, w -> w, (first, second) -> first));
 
         Instant now = clock.instant();
 
