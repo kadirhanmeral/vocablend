@@ -19,8 +19,12 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import org.mockito.ArgumentCaptor;
 
 @ExtendWith(MockitoExtension.class)
 class DeviceWordServiceImplTest {
@@ -75,6 +79,29 @@ class DeviceWordServiceImplTest {
         assertEquals(1, deviceWord.getWords().size());
         assertEquals("banana", deviceWord.getWords().get(0).getWord());
         verify(deviceWordRepository).save(deviceWord);
+    }
+
+    @Test
+    void addWord_startsNewWordInLearningPhaseDueNow() {
+        String deviceId = "device-1";
+        String word = "resilient";
+
+        when(deviceWordRepository.findByDeviceId(deviceId)).thenReturn(Optional.empty());
+        when(wordService.addWord(word)).thenReturn(wordEntity(word));
+
+        deviceWordService.addWord(deviceId, word);
+
+        ArgumentCaptor<DeviceWordEntity> captor = ArgumentCaptor.forClass(DeviceWordEntity.class);
+        verify(deviceWordRepository).save(captor.capture());
+
+        DeviceWordEntity savedEntity = captor.getValue();
+        assertEquals(1, savedEntity.getWords().size());
+
+        WordProgress savedWord = savedEntity.getWords().get(0);
+        assertEquals(word, savedWord.getWord());
+        assertEquals(0, savedWord.getLevel());
+        assertEquals(0, savedWord.getCorrectStreak());
+        assertEquals(NOW, savedWord.getNextReviewAt());
     }
 
     private WordEntity wordEntity(String word) {
