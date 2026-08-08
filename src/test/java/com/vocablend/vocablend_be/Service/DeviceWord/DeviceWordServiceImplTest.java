@@ -23,6 +23,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -175,6 +176,19 @@ class DeviceWordServiceImplTest {
 
         when(deviceWordRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(deviceWord));
 
+        // Snapshot apple's mutable state at the instant save() is invoked. A mock's
+        // save() only records that the reference was passed, not the field values at
+        // call time, so this is what actually fails if save() is ever moved ahead of
+        // reviewScheduler.apply() - the entity must be fully mutated before it is
+        // handed to the repository.
+        int[] levelAtSaveTime = new int[1];
+        Instant[] nextReviewAtAtSaveTime = new Instant[1];
+        doAnswer(invocation -> {
+            levelAtSaveTime[0] = apple.getLevel();
+            nextReviewAtAtSaveTime[0] = apple.getNextReviewAt();
+            return null;
+        }).when(deviceWordRepository).save(deviceWord);
+
         Optional<ReviewResponse> result = deviceWordService.review(deviceId, "apple", ReviewOutcome.GOT_IT);
 
         assertTrue(result.isPresent());
@@ -186,6 +200,11 @@ class DeviceWordServiceImplTest {
         // The other word is untouched.
         assertEquals(3, banana.getLevel());
         verify(deviceWordRepository).save(deviceWord);
+
+        // Pins the ordering invariant: by the time save() fires, apple must already
+        // reflect the post-review state, not the pre-review one.
+        assertEquals(1, levelAtSaveTime[0]);
+        assertEquals(NOW.plus(Duration.ofHours(1)), nextReviewAtAtSaveTime[0]);
     }
 
     @Test
