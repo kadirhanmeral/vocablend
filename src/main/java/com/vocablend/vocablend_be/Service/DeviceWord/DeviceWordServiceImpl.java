@@ -1,6 +1,7 @@
 package com.vocablend.vocablend_be.Service.DeviceWord;
 
 import com.vocablend.vocablend_be.Controller.Dto.DeviceWordResponse;
+import com.vocablend.vocablend_be.Controller.Dto.ReviewResponse;
 import com.vocablend.vocablend_be.Dao.Entity.DeviceWordEntity;
 import com.vocablend.vocablend_be.Dao.Entity.WordEntity;
 import com.vocablend.vocablend_be.Dao.Entity.WordProgress;
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,6 +30,8 @@ public class DeviceWordServiceImpl implements DeviceWordService {
     private final WordService wordService;
 
     private final Clock clock;
+
+    private final ReviewScheduler reviewScheduler;
 
     @Override
     public WordEntity addWord(String deviceId, String word) {
@@ -80,6 +84,39 @@ public class DeviceWordServiceImpl implements DeviceWordService {
                 .map(progress -> toResponse(progress, contentByWord.get(progress.getWord()), now))
                 .filter(Objects::nonNull)
                 .toList();
+    }
+
+    @Override
+    public Optional<ReviewResponse> review(String deviceId, String word, ReviewOutcome outcome) {
+        if (!StringUtils.hasText(deviceId) || !StringUtils.hasText(word) || outcome == null) {
+            return Optional.empty();
+        }
+
+        DeviceWordEntity deviceWord = deviceWordRepository.findByDeviceId(deviceId).orElse(null);
+
+        if (deviceWord == null) {
+            return Optional.empty();
+        }
+
+        String normalizedWord = word.toLowerCase();
+
+        Optional<WordProgress> match = deviceWord.getWords().stream()
+                .filter(progress -> progress.getWord().equals(normalizedWord))
+                .findFirst();
+
+        if (match.isEmpty()) {
+            return Optional.empty();
+        }
+
+        WordProgress progress = match.get();
+        reviewScheduler.apply(progress, outcome);
+        deviceWordRepository.save(deviceWord);
+
+        return Optional.of(new ReviewResponse(
+                progress.getWord(),
+                progress.getLevel(),
+                progress.getCorrectStreak(),
+                progress.getNextReviewAt()));
     }
 
     private DeviceWordResponse toResponse(WordProgress progress, WordEntity content, Instant now) {

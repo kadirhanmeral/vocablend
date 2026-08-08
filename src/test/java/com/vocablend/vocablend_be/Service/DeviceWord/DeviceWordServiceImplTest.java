@@ -1,6 +1,7 @@
 package com.vocablend.vocablend_be.Service.DeviceWord;
 
 import com.vocablend.vocablend_be.Controller.Dto.DeviceWordResponse;
+import com.vocablend.vocablend_be.Controller.Dto.ReviewResponse;
 import com.vocablend.vocablend_be.Dao.Entity.DeviceWordEntity;
 import com.vocablend.vocablend_be.Dao.Entity.WordEntity;
 import com.vocablend.vocablend_be.Dao.Entity.WordProgress;
@@ -13,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -20,6 +22,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -42,7 +46,8 @@ class DeviceWordServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        deviceWordService = new DeviceWordServiceImpl(deviceWordRepository, wordService, clock);
+        deviceWordService = new DeviceWordServiceImpl(
+                deviceWordRepository, wordService, clock, new ReviewScheduler(clock));
     }
 
     @Test
@@ -158,6 +163,67 @@ class DeviceWordServiceImplTest {
         assertEquals(0, savedWord.getLevel());
         assertEquals(0, savedWord.getCorrectStreak());
         assertEquals(NOW, savedWord.getNextReviewAt());
+    }
+
+    @Test
+    void review_appliesOutcomeToMatchingWordAndPersists() {
+        String deviceId = "device-1";
+        WordProgress apple = new WordProgress("apple", 0, 2, NOW);
+        WordProgress banana = new WordProgress("banana", 3, 0, NOW);
+        DeviceWordEntity deviceWord = new DeviceWordEntity(
+                "1", deviceId, new ArrayList<>(List.of(apple, banana)));
+
+        when(deviceWordRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(deviceWord));
+
+        Optional<ReviewResponse> result = deviceWordService.review(deviceId, "apple", ReviewOutcome.GOT_IT);
+
+        assertTrue(result.isPresent());
+        assertEquals("apple", result.get().word());
+        assertEquals(1, result.get().level());
+        assertEquals(0, result.get().correctStreak());
+        assertEquals(NOW.plus(Duration.ofHours(1)), result.get().nextReviewAt());
+
+        // The other word is untouched.
+        assertEquals(3, banana.getLevel());
+        verify(deviceWordRepository).save(deviceWord);
+    }
+
+    @Test
+    void review_normalizesWordCasing() {
+        String deviceId = "device-1";
+        WordProgress apple = new WordProgress("apple", 0, 2, NOW);
+        DeviceWordEntity deviceWord = new DeviceWordEntity(
+                "1", deviceId, new ArrayList<>(List.of(apple)));
+
+        when(deviceWordRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(deviceWord));
+
+        Optional<ReviewResponse> result = deviceWordService.review(deviceId, "Apple", ReviewOutcome.GOT_IT);
+
+        assertTrue(result.isPresent());
+        assertEquals(1, result.get().level());
+    }
+
+    @Test
+    void review_returnsEmptyAndSavesNothingWhenWordNotSaved() {
+        String deviceId = "device-1";
+        DeviceWordEntity deviceWord = new DeviceWordEntity(
+                "1", deviceId, new ArrayList<>(List.of(new WordProgress("apple", 0, 0, NOW))));
+
+        when(deviceWordRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(deviceWord));
+
+        Optional<ReviewResponse> result = deviceWordService.review(deviceId, "pear", ReviewOutcome.GOT_IT);
+
+        assertTrue(result.isEmpty());
+        verify(deviceWordRepository, never()).save(deviceWord);
+    }
+
+    @Test
+    void review_returnsEmptyWhenDeviceUnknown() {
+        when(deviceWordRepository.findByDeviceId("ghost")).thenReturn(Optional.empty());
+
+        Optional<ReviewResponse> result = deviceWordService.review("ghost", "apple", ReviewOutcome.GOT_IT);
+
+        assertTrue(result.isEmpty());
     }
 
     private WordEntity wordEntity(String word) {
